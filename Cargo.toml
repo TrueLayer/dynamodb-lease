@@ -1,0 +1,26 @@
+[package]
+name = "dynamodb-lease"
+version = "0.1.0"
+authors = ["Alex Butler <alex.butler@truelayer.com>"]
+edition = "2021"
+description = "Dynamodb distributed lock client"
+repository = "https://github.com/TrueLayer/dynamodb-lease"
+keywords = ["dynamodb", "lock", "lease"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+[dependencies]
+anyhow = "1"
+aws-sdk-dynamodb = { version = "0.11", default-features = false, features = ["rt-tokio"] }
+time = "0.3.9"
+tokio = { version = "1.18", features = ["macros"] }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+aws-config = "0.11"
+tokio = { version = "1.18", features = ["rt", "macros"] }
+
+[features]
+default = ["rustls"]
+rustls = ["aws-sdk-dynamodb/rustls"]
+native-tls = ["aws-sdk-dynamodb/native-tls"]
