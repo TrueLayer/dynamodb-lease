@@ -110,6 +110,42 @@ async fn acquire() {
 }
 
 #[tokio::test]
+async fn acquire_timeout() {
+    let lease_table = "test-locker-leases";
+    let db_client = localhost_dynamodb().await;
+    create_lease_table(lease_table, &db_client).await;
+
+    let client = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
+        .build_and_check_db(db_client)
+        .await
+        .unwrap();
+
+    let lease_key = format!("acquire:{}", Uuid::new_v4());
+
+    // acquiring a lease should work
+    let lease1 = client
+        .acquire_timeout(&lease_key, Duration::from_millis(100))
+        .await
+        .unwrap();
+
+    // subsequent attempts should fail
+    let lease2 = client
+        .acquire_timeout(&lease_key, Duration::from_millis(100))
+        .await;
+    assert!(lease2.is_err(), "should not acquire while lease1 is alive");
+
+    // dropping should asynchronously end the lease
+    drop(lease1);
+
+    // in shortish order the key should be acquirable again
+    client
+        .acquire_timeout(&lease_key, TEST_WAIT)
+        .await
+        .expect("failed to acquire");
+}
+
+#[tokio::test]
 async fn init_should_check_table_exists() {
     let db_client = localhost_dynamodb().await;
 
