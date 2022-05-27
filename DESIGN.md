@@ -28,6 +28,8 @@ When finished the `Lease` is dropped.
 A new lease can now be acquired.
 
 ## Edge cases, issues & error scenarios
+Dynamodb leases provide decent exclusivity for the initial `lease_expiry` and make a "best effort" to extend for as long as needed. Because of this, the use of leases alone may not provide enough guarantee for processes that **must** never lose exclusivity.
+
 ### Lost access to db after acquiring lease
 If access to the db is lost _after_ acquiring a lease the background task will be unable to _UpdateItem_ to extend the lease. The lease also will not be able to _DeleteItem_ on drop.
 
