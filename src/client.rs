@@ -1,12 +1,16 @@
 use crate::{ClientBuilder, Lease};
-use anyhow::{ensure, Context};
+use anyhow::{bail, ensure, Context};
 use aws_sdk_dynamodb::{
     error::{DeleteItemError, PutItemError, PutItemErrorKind, UpdateItemError},
     model::{AttributeValue, KeyType, ScalarAttributeType},
     output::DeleteItemOutput,
     types::SdkError,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    cmp::min,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -50,6 +54,32 @@ impl Client {
                 return Ok(lease);
             }
             tokio::time::sleep(self.acquire_cooldown).await;
+        }
+    }
+
+    /// Acquires a new [`Lease`] for the given `key`. May wait until successful if the lease
+    /// has already been acquired elsewhere up to a max of `max_wait`.
+    ///
+    /// There will always be at least one attempt to acquire regardless of `max_wait`.
+    ///
+    /// To try to acquire without waiting see [`Client::try_acquire`].
+    pub async fn acquire_timeout(
+        &self,
+        key: impl Into<String>,
+        max_wait: Duration,
+    ) -> anyhow::Result<Lease> {
+        let key = key.into();
+        let start = Instant::now();
+        loop {
+            if let Some(lease) = self.put_lease(key.clone()).await? {
+                return Ok(lease);
+            }
+            let elapsed = start.elapsed();
+            if elapsed > max_wait {
+                bail!("Could not acquire within {max_wait:?}");
+            }
+            let remaining_max_wait = max_wait - elapsed;
+            tokio::time::sleep(min(self.acquire_cooldown, remaining_max_wait)).await;
         }
     }
 
