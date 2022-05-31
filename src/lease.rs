@@ -1,6 +1,6 @@
 use crate::Client;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 use uuid::Uuid;
 
 /// Represents a held distributed lease & background task to
@@ -11,6 +11,8 @@ use uuid::Uuid;
 pub struct Lease {
     client: Client,
     key_lease_v: Arc<(String, Mutex<Uuid>)>,
+    /// A local guard to avoid db contention for leases within the same client.
+    local_guard: Option<OwnedMutexGuard<()>>,
 }
 
 impl Lease {
@@ -18,11 +20,17 @@ impl Lease {
         let lease = Self {
             client,
             key_lease_v: Arc::new((key, Mutex::new(lease_v))),
+            local_guard: None,
         };
 
         start_periodicly_extending(&lease);
 
         lease
+    }
+
+    pub(crate) fn with_local_guard(mut self, guard: OwnedMutexGuard<()>) -> Self {
+        self.local_guard = Some(guard);
+        self
     }
 }
 
@@ -54,11 +62,14 @@ impl Drop for Lease {
     fn drop(&mut self) {
         let client = self.client.clone();
         let key_lease_v = self.key_lease_v.clone();
+        let local_guard = self.local_guard.take();
         tokio::spawn(async move {
             let lease_v = key_lease_v.1.lock().await;
             let key = key_lease_v.0.clone();
             // TODO retries, logs?
             let _ = client.delete_lease(key, *lease_v).await;
+            // drop local guard *after* deleting lease
+            drop(local_guard);
         });
     }
 }

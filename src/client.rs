@@ -1,4 +1,4 @@
-use crate::{ClientBuilder, Lease};
+use crate::{local::LocalLocks, ClientBuilder, Lease};
 use anyhow::{bail, ensure, Context};
 use aws_sdk_dynamodb::{
     error::{DeleteItemError, PutItemError, PutItemErrorKind, UpdateItemError},
@@ -18,7 +18,12 @@ const KEY_FIELD: &str = "key";
 const LEASE_EXPIRY_FIELD: &str = "lease_expiry";
 const LEASE_VERSION_FIELD: &str = "lease_version";
 
-/// Distributed lease client.
+/// Client for acquiring [`Lease`]s.
+///
+/// Communicates with dynamodb to acquire, extend and delete distributed leases.
+///
+/// Local mutex locks are also used to eliminate db contention for usage within
+/// a single `Client` instance or clone.
 #[derive(Debug, Clone)]
 pub struct Client {
     pub(crate) client: aws_sdk_dynamodb::Client,
@@ -26,6 +31,7 @@ pub struct Client {
     pub(crate) lease_ttl_seconds: u32,
     pub(crate) extend_period: Duration,
     pub(crate) acquire_cooldown: Duration,
+    pub(crate) local_locks: LocalLocks,
 }
 
 impl Client {
@@ -40,7 +46,16 @@ impl Client {
     ///
     /// Does not wait to acquire a lease, to do so see [`Client::acquire`].
     pub async fn try_acquire(&self, key: impl Into<String>) -> anyhow::Result<Option<Lease>> {
-        self.put_lease(key.into()).await
+        let key = key.into();
+        let local_guard = match self.local_locks.try_lock(key.clone()) {
+            Ok(g) => g,
+            Err(_) => return Ok(None),
+        };
+
+        match self.put_lease(key).await {
+            Ok(Some(lease)) => Ok(Some(lease.with_local_guard(local_guard))),
+            x => x,
+        }
     }
 
     /// Acquires a new [`Lease`] for the given `key`. May wait until successful if the lease
@@ -49,9 +64,11 @@ impl Client {
     /// To try to acquire without waiting see [`Client::try_acquire`].
     pub async fn acquire(&self, key: impl Into<String>) -> anyhow::Result<Lease> {
         let key = key.into();
+        let local_guard = self.local_locks.lock(key.clone()).await;
+
         loop {
             if let Some(lease) = self.put_lease(key.clone()).await? {
-                return Ok(lease);
+                return Ok(lease.with_local_guard(local_guard));
             }
             tokio::time::sleep(self.acquire_cooldown).await;
         }
@@ -60,19 +77,22 @@ impl Client {
     /// Acquires a new [`Lease`] for the given `key`. May wait until successful if the lease
     /// has already been acquired elsewhere up to a max of `max_wait`.
     ///
-    /// There will always be at least one attempt to acquire regardless of `max_wait`.
-    ///
     /// To try to acquire without waiting see [`Client::try_acquire`].
     pub async fn acquire_timeout(
         &self,
         key: impl Into<String>,
         max_wait: Duration,
     ) -> anyhow::Result<Lease> {
-        let key = key.into();
         let start = Instant::now();
+        let key = key.into();
+
+        let local_guard = tokio::time::timeout(max_wait, self.local_locks.lock(key.clone()))
+            .await
+            .context("Could not acquire within {max_wait:?}")?;
+
         loop {
             if let Some(lease) = self.put_lease(key.clone()).await? {
-                return Ok(lease);
+                return Ok(lease.with_local_guard(local_guard));
             }
             let elapsed = start.elapsed();
             if elapsed > max_wait {
