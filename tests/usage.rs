@@ -16,6 +16,49 @@ async fn try_acquire() {
 
     let client = dynamodb_lease::Client::builder()
         .table_name(lease_table)
+        .build_and_check_db(db_client.clone())
+        .await
+        .unwrap();
+    // use 2 clients to avoid local locking / simulate distributed usage
+    let client2 = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
+        .build_and_check_db(db_client)
+        .await
+        .unwrap();
+
+    let lease_key = format!("try_acquire:{}", Uuid::new_v4());
+
+    // acquiring a lease should work
+    let lease1 = client.try_acquire(&lease_key).await.unwrap();
+    assert!(lease1.is_some());
+
+    // subsequent attempts should fail
+    let lease2 = client2.try_acquire(&lease_key).await.unwrap();
+    assert!(lease2.is_none());
+    let lease2 = client2.try_acquire(&lease_key).await.unwrap();
+    assert!(lease2.is_none());
+
+    // dropping should asynchronously end the lease
+    drop(lease1);
+
+    // in shortish order the key should be acquirable again
+    retry::until_ok(|| async {
+        client2
+            .try_acquire(&lease_key)
+            .await
+            .and_then(|maybe_lease| maybe_lease.context("did not acquire"))
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn local_try_acquire() {
+    let lease_table = "test-locker-leases";
+    let db_client = localhost_dynamodb().await;
+    create_lease_table(lease_table, &db_client).await;
+
+    let client = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
         .build_and_check_db(db_client)
         .await
         .unwrap();
@@ -55,6 +98,13 @@ async fn try_acquire_extend_past_ttl() {
     let client = dynamodb_lease::Client::builder()
         .table_name(lease_table)
         .lease_ttl_seconds(2)
+        .build_and_check_db(db_client.clone())
+        .await
+        .unwrap();
+    // use 2 clients to avoid local locking / simulate distributed usage
+    let client2 = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
+        .lease_ttl_seconds(2)
         .build_and_check_db(db_client)
         .await
         .unwrap();
@@ -66,20 +116,58 @@ async fn try_acquire_extend_past_ttl() {
     assert!(lease1.is_some());
 
     // subsequent attempts should fail
-    assert!(client.try_acquire(&lease_key).await.unwrap().is_none());
+    assert!(client2.try_acquire(&lease_key).await.unwrap().is_none());
 
     // after some time the original lease will have expired
     // however, a background task should have extended it so it should still be active.
     // Note: Need to wait ages to reliably trigger ttl deletion :(
     tokio::time::sleep(Duration::from_secs(10)).await;
     assert!(
-        client.try_acquire(&lease_key).await.unwrap().is_none(),
+        client2.try_acquire(&lease_key).await.unwrap().is_none(),
         "lease should have been extended"
     );
 }
 
 #[tokio::test]
 async fn acquire() {
+    let lease_table = "test-locker-leases";
+    let db_client = localhost_dynamodb().await;
+    create_lease_table(lease_table, &db_client).await;
+
+    let client = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
+        .build_and_check_db(db_client.clone())
+        .await
+        .unwrap();
+    // use 2 clients to avoid local locking / simulate distributed usage
+    let client2 = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
+        .build_and_check_db(db_client)
+        .await
+        .unwrap();
+
+    let lease_key = format!("acquire:{}", Uuid::new_v4());
+
+    // acquiring a lease should work
+    let lease1 = client.acquire(&lease_key).await.unwrap();
+
+    // subsequent attempts should fail
+    let lease2 =
+        tokio::time::timeout(Duration::from_millis(100), client2.acquire(&lease_key)).await;
+    assert!(lease2.is_err(), "should not acquire while lease1 is alive");
+
+    // dropping should asynchronously end the lease
+    drop(lease1);
+
+    // in shortish order the key should be acquirable again
+    tokio::time::timeout(TEST_WAIT, client2.acquire(&lease_key))
+        .await
+        .expect("could not acquire after drop")
+        .expect("failed to acquire");
+}
+
+#[tokio::test]
+async fn local_acquire() {
     let lease_table = "test-locker-leases";
     let db_client = localhost_dynamodb().await;
     create_lease_table(lease_table, &db_client).await;
@@ -117,6 +205,12 @@ async fn acquire_timeout() {
 
     let client = dynamodb_lease::Client::builder()
         .table_name(lease_table)
+        .build_and_check_db(db_client.clone())
+        .await
+        .unwrap();
+    // use 2 clients to avoid local locking / simulate distributed usage
+    let client2 = dynamodb_lease::Client::builder()
+        .table_name(lease_table)
         .build_and_check_db(db_client)
         .await
         .unwrap();
@@ -130,7 +224,7 @@ async fn acquire_timeout() {
         .unwrap();
 
     // subsequent attempts should fail
-    let lease2 = client
+    let lease2 = client2
         .acquire_timeout(&lease_key, Duration::from_millis(100))
         .await;
     assert!(lease2.is_err(), "should not acquire while lease1 is alive");
@@ -139,7 +233,7 @@ async fn acquire_timeout() {
     drop(lease1);
 
     // in shortish order the key should be acquirable again
-    client
+    client2
         .acquire_timeout(&lease_key, TEST_WAIT)
         .await
         .expect("failed to acquire");

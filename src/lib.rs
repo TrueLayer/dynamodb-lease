@@ -28,6 +28,7 @@
 mod builder;
 mod client;
 mod lease;
+mod local;
 
 pub use builder::ClientBuilder;
 pub use client::Client;

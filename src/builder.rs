@@ -107,6 +107,7 @@ impl ClientBuilder {
             lease_ttl_seconds: self.lease_ttl_seconds,
             extend_period,
             acquire_cooldown: self.acquire_cooldown,
+            local_locks: <_>::default(),
         };
 
         client.check_schema().await?;
