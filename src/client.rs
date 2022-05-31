@@ -153,6 +153,11 @@ impl Client {
             .await
     }
 
+    /// Cleanup local lock memory for the given `key` if not in use.
+    pub(crate) fn try_clean_local_lock(&self, key: String) {
+        self.local_locks.try_remove(key)
+    }
+
     /// Extends an active lease. Returns the new `lease_v` uuid.
     pub(crate) async fn extend_lease(
         &self,

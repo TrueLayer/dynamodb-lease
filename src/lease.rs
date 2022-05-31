@@ -67,9 +67,10 @@ impl Drop for Lease {
             let lease_v = key_lease_v.1.lock().await;
             let key = key_lease_v.0.clone();
             // TODO retries, logs?
-            let _ = client.delete_lease(key, *lease_v).await;
+            let _ = client.delete_lease(key.clone(), *lease_v).await;
             // drop local guard *after* deleting lease
             drop(local_guard);
+            client.try_clean_local_lock(key);
         });
     }
 }

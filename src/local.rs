@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::Arc,
+};
 use tokio::sync::{Mutex, OwnedMutexGuard, TryLockError};
 
 /// Map of local key locks.
@@ -19,5 +22,14 @@ impl LocalLocks {
     fn key_mutex(&self, key: String) -> Arc<Mutex<()>> {
         let mut locks = self.0.lock().unwrap();
         locks.entry(key).or_default().clone()
+    }
+
+    pub(crate) fn try_remove(&self, key: String) {
+        let mut locks = self.0.lock().unwrap();
+        if let Entry::Occupied(entry) = locks.entry(key) {
+            if Arc::strong_count(entry.get()) == 1 {
+                entry.remove();
+            }
+        }
     }
 }
