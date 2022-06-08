@@ -1,0 +1,41 @@
+version: 2.1
+
+orbs:
+  releaser: truelayer/releaser@3
+
+jobs:
+  try-publish-to-cloudsmith:
+    environment:
+      CLOUDSMITH_REPOSITORY: 'truelayer/rustlayer'
+    docker:
+      - image: "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/truelayer/cci-cargo"
+        aws_auth:
+          aws_access_key_id: $AWS_ACCESS_KEY_ID
+          aws_secret_access_key: $AWS_SECRET_ACCESS_KEY
+      - image: amazon/dynamodb-local
+    steps:
+      - checkout
+      - run: rustc --version; cargo --version; rustup --version
+      - run: cargo test
+      # Try to publish the current version of the package, we expect this to fail if the version
+      # has not changed.
+      - run:
+          name: Try publish dynamodb-lease
+          command: |
+            set -xeu
+            if ! VERSION="$(grep -m1 'version = "' Cargo.toml | cut -d'"' -f2)"; then exit 1; fi
+            cargo package --target-dir . --no-verify
+            cloudsmith push cargo \
+              --api-key=$CARGO_REGISTRIES_TRUELAYER_RUSTLAYER_TOKEN \
+              $CLOUDSMITH_REPOSITORY package/dynamodb-lease-$VERSION.crate \
+              || true
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - try-publish-to-cloudsmith:
+          context: org-global
+          filters:
+            branches:
+              only: /cci-publish/
