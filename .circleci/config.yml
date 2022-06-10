@@ -38,4 +38,4 @@ workflows:
           context: org-global
           filters:
             branches:
-              only: /cci-publish/
+              only: /main/
