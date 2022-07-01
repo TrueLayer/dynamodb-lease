@@ -1,6 +1,6 @@
 [package]
 name = "dynamodb-lease"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Alex Butler <alex.butler@truelayer.com>"]
 edition = "2021"
 description = "Dynamodb distributed lock client"
@@ -11,13 +11,13 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.57"
-aws-sdk-dynamodb = { version = "0.14", default-features = false, features = ["rt-tokio"] }
+aws-sdk-dynamodb = { version = "0.15", default-features = false, features = ["rt-tokio"] }
 time = "0.3.9"
 tokio = { version = "1.18", features = ["macros"] }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
-aws-config = "0.14"
+aws-config = "0.15"
 tokio = { version = "1", features = ["rt", "macros"] }
 
 [features]
