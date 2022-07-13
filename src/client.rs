@@ -12,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use time::OffsetDateTime;
+use tracing::instrument;
 use uuid::Uuid;
 
 const KEY_FIELD: &str = "key";
@@ -45,6 +46,7 @@ impl Client {
     /// If this lease has already been acquired elsewhere `Ok(None)` is returned.
     ///
     /// Does not wait to acquire a lease, to do so see [`Client::acquire`].
+    #[instrument(skip_all)]
     pub async fn try_acquire(&self, key: impl Into<String>) -> anyhow::Result<Option<Lease>> {
         let key = key.into();
         let local_guard = match self.local_locks.try_lock(key.clone()) {
@@ -62,6 +64,7 @@ impl Client {
     /// has already been acquired elsewhere.
     ///
     /// To try to acquire without waiting see [`Client::try_acquire`].
+    #[instrument(skip_all)]
     pub async fn acquire(&self, key: impl Into<String>) -> anyhow::Result<Lease> {
         let key = key.into();
         let local_guard = self.local_locks.lock(key.clone()).await;
@@ -78,6 +81,7 @@ impl Client {
     /// has already been acquired elsewhere up to a max of `max_wait`.
     ///
     /// To try to acquire without waiting see [`Client::try_acquire`].
+    #[instrument(skip_all)]
     pub async fn acquire_timeout(
         &self,
         key: impl Into<String>,
@@ -138,6 +142,7 @@ impl Client {
     }
 
     /// Delete a lease with a given `key` & `lease_v`.
+    #[instrument(skip_all)]
     pub(crate) async fn delete_lease(
         &self,
         key: String,
@@ -159,6 +164,7 @@ impl Client {
     }
 
     /// Extends an active lease. Returns the new `lease_v` uuid.
+    #[instrument(skip_all)]
     pub(crate) async fn extend_lease(
         &self,
         key: String,
