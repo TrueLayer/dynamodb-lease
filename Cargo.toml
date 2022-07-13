@@ -1,6 +1,6 @@
 [package]
 name = "dynamodb-lease"
-version = "0.4.0"
+version = "0.4.1-beta.0"
 authors = ["Alex Butler <alex.butler@truelayer.com>"]
 edition = "2021"
 description = "Dynamodb distributed lock client"
