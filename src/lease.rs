@@ -62,15 +62,19 @@ impl Drop for Lease {
     fn drop(&mut self) {
         let client = self.client.clone();
         let key_lease_v = self.key_lease_v.clone();
-        let local_guard = self.local_guard.take();
+
+        // drop local guard *before* deleting lease to avoid unfair local acquire advantage
+        drop(self.local_guard.take());
+        client.try_clean_local_lock(key_lease_v.0.clone());
+
         tokio::spawn(async move {
             let lease_v = key_lease_v.1.lock().await;
             let key = key_lease_v.0.clone();
             // TODO retries, logs?
-            let _ = client.delete_lease(key.clone(), *lease_v).await;
-            // drop local guard *after* deleting lease
-            drop(local_guard);
-            client.try_clean_local_lock(key);
+            let _ = client.delete_lease(key, *lease_v).await;
+            // // drop local guard *after* deleting lease
+            // drop(local_guard);
+            // client.try_clean_local_lock(key);
         });
     }
 }
