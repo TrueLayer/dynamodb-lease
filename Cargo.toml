@@ -11,14 +11,14 @@ readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.57"
-aws-sdk-dynamodb = { version = "0.15", default-features = false, features = ["rt-tokio"] }
+aws-sdk-dynamodb = { version = "0.16", default-features = false, features = ["rt-tokio"] }
 time = "0.3.9"
 tokio = { version = "1.18", features = ["macros"] }
 tracing = "0.1.35"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
-aws-config = "0.15"
+aws-config = "0.46"
 tokio = { version = "1", features = ["rt", "macros"] }
 
 [features]
