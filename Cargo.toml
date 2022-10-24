@@ -1,7 +1,7 @@
 [package]
 name = "dynamodb-lease"
 version = "0.8.0"
-authors = ["Alex Butler <alex.butler@truelayer.com>"]
+authors = ["Alex Butler <alexheretic@gmail.com>"]
 edition = "2021"
 description = "Dynamodb distributed lock client"
 repository = "https://github.com/TrueLayer/dynamodb-lease"
