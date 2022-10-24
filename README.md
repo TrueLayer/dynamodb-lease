@@ -3,6 +3,9 @@ Client that acquires distributed locks in dynamodb that expire (aka "leases").
 Uses [aws-sdk-dynamodb](https://github.com/awslabs/aws-sdk-rust/tree/main/sdk/dynamodb)
 & [tokio](https://github.com/tokio-rs/tokio).
 
+[![Crates.io](https://img.shields.io/crates/v/dynamodb-lease.svg)](https://crates.io/crates/dynamodb-lease)
+[![Docs.rs](https://docs.rs/dynamodb-lease/badge.svg)](https://docs.rs/dynamodb-lease)
+
 ```rust
 let client = dynamodb_lease::Client::builder()
     .table_name("example-leases")
