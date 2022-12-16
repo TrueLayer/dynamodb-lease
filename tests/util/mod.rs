@@ -1,7 +1,7 @@
 pub mod retry;
 
 use aws_sdk_dynamodb::{
-    error::{CreateTableError, CreateTableErrorKind},
+    error::CreateTableErrorKind,
     model::{
         AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ScalarAttributeType,
         TimeToLiveSpecification,
@@ -17,9 +17,10 @@ pub const TEST_WAIT: Duration = Duration::from_secs(4);
 pub async fn localhost_dynamodb() -> aws_sdk_dynamodb::Client {
     let conf = aws_config::from_env().region("eu-west-1").load().await;
     let conf = aws_sdk_dynamodb::config::Builder::from(&conf)
-        .endpoint_resolver(aws_sdk_dynamodb::Endpoint::immutable(
-            "http://localhost:8000".parse().unwrap(),
-        ))
+        .endpoint_resolver(
+            aws_sdk_dynamodb::Endpoint::immutable_uri("http://localhost:8000".parse().unwrap())
+                .unwrap(),
+        )
         .build();
     aws_sdk_dynamodb::Client::from_conf(conf)
 }
@@ -46,15 +47,15 @@ pub async fn create_lease_table(table_name: &str, client: &aws_sdk_dynamodb::Cli
         .await;
 
     match create_table {
-        Ok(_)
-        | Err(SdkError::ServiceError {
-            err:
-                CreateTableError {
-                    kind: CreateTableErrorKind::ResourceInUseException(..),
-                    ..
-                },
-            ..
-        }) => Ok(()),
+        Ok(_) => Ok(()),
+        Err(SdkError::ServiceError(se))
+            if matches!(
+                se.err().kind,
+                CreateTableErrorKind::ResourceInUseException(..)
+            ) =>
+        {
+            Ok(())
+        }
         Err(e) => Err(e),
     }
     .expect("dynamodb create_table failed: Did you run scripts/init-test.sh ?");
@@ -72,9 +73,9 @@ pub async fn create_lease_table(table_name: &str, client: &aws_sdk_dynamodb::Cli
         .await;
     match ttl_update {
         Ok(_) => Ok(()),
-        Err(SdkError::ServiceError { err, .. })
-            if err.code() == Some("ValidationException")
-                && err.message() == Some("TimeToLive is already enabled") =>
+        Err(SdkError::ServiceError(se))
+            if se.err().code() == Some("ValidationException")
+                && se.err().message() == Some("TimeToLive is already enabled") =>
         {
             Ok(())
         }

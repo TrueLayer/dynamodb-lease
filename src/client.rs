@@ -1,7 +1,7 @@
 use crate::{local::LocalLocks, ClientBuilder, Lease};
 use anyhow::{bail, ensure, Context};
 use aws_sdk_dynamodb::{
-    error::{DeleteItemError, PutItemError, PutItemErrorKind, UpdateItemError},
+    error::{DeleteItemError, PutItemErrorKind, UpdateItemError},
     model::{AttributeValue, KeyType, ScalarAttributeType},
     output::DeleteItemOutput,
     types::SdkError,
@@ -128,14 +128,14 @@ impl Client {
             .await;
 
         match put {
-            Err(SdkError::ServiceError {
-                err:
-                    PutItemError {
-                        kind: PutItemErrorKind::ConditionalCheckFailedException(..),
-                        ..
-                    },
-                ..
-            }) => Ok(None),
+            Err(SdkError::ServiceError(se))
+                if matches!(
+                    se.err().kind,
+                    PutItemErrorKind::ConditionalCheckFailedException(..)
+                ) =>
+            {
+                Ok(None)
+            }
             Err(err) => Err(err.into()),
             Ok(_) => Ok(Some(Lease::new(self.clone(), key, lease_v))),
         }
