@@ -17,10 +17,7 @@ pub const TEST_WAIT: Duration = Duration::from_secs(4);
 pub async fn localhost_dynamodb() -> aws_sdk_dynamodb::Client {
     let conf = aws_config::from_env().region("eu-west-1").load().await;
     let conf = aws_sdk_dynamodb::config::Builder::from(&conf)
-        .endpoint_resolver(
-            aws_sdk_dynamodb::Endpoint::immutable_uri("http://localhost:8000".parse().unwrap())
-                .unwrap(),
-        )
+        .endpoint_url("http://localhost:8000")
         .build();
     aws_sdk_dynamodb::Client::from_conf(conf)
 }
