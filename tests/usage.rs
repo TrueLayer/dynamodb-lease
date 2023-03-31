@@ -1,7 +1,7 @@
 mod util;
 
 use anyhow::Context;
-use aws_sdk_dynamodb::model::{
+use aws_sdk_dynamodb::types::{
     AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ScalarAttributeType,
 };
 use std::time::Duration;
