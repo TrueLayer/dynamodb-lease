@@ -1,12 +1,12 @@
 pub mod retry;
 
 use aws_sdk_dynamodb::{
-    error::CreateTableErrorKind,
-    model::{
+    error::{ProvideErrorMetadata, SdkError},
+    operation::create_table::CreateTableError,
+    types::{
         AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ScalarAttributeType,
         TimeToLiveSpecification,
     },
-    types::SdkError,
 };
 use std::time::Duration;
 
@@ -46,10 +46,7 @@ pub async fn create_lease_table(table_name: &str, client: &aws_sdk_dynamodb::Cli
     match create_table {
         Ok(_) => Ok(()),
         Err(SdkError::ServiceError(se))
-            if matches!(
-                se.err().kind,
-                CreateTableErrorKind::ResourceInUseException(..)
-            ) =>
+            if matches!(se.err(), CreateTableError::ResourceInUseException(..)) =>
         {
             Ok(())
         }

@@ -1,10 +1,13 @@
 use crate::{local::LocalLocks, ClientBuilder, Lease};
 use anyhow::{bail, ensure, Context};
 use aws_sdk_dynamodb::{
-    error::{DeleteItemError, PutItemErrorKind, UpdateItemError},
-    model::{AttributeValue, KeyType, ScalarAttributeType},
-    output::DeleteItemOutput,
-    types::SdkError,
+    error::SdkError,
+    operation::{
+        delete_item::{DeleteItemError, DeleteItemOutput},
+        put_item::PutItemError,
+        update_item::UpdateItemError,
+    },
+    types::{AttributeValue, KeyType, ScalarAttributeType},
 };
 use std::{
     cmp::min,
@@ -129,10 +132,7 @@ impl Client {
 
         match put {
             Err(SdkError::ServiceError(se))
-                if matches!(
-                    se.err().kind,
-                    PutItemErrorKind::ConditionalCheckFailedException(..)
-                ) =>
+                if matches!(se.err(), PutItemError::ConditionalCheckFailedException(..)) =>
             {
                 Ok(None)
             }
