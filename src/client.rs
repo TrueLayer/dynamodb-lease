@@ -9,6 +9,7 @@ use aws_sdk_dynamodb::{
     },
     types::{AttributeValue, KeyType, ScalarAttributeType},
 };
+use aws_smithy_runtime_api::client::orchestrator;
 use std::{
     cmp::min,
     sync::Arc,
@@ -147,7 +148,7 @@ impl Client {
         &self,
         key: String,
         lease_v: Uuid,
-    ) -> Result<DeleteItemOutput, SdkError<DeleteItemError>> {
+    ) -> Result<DeleteItemOutput, SdkError<DeleteItemError, orchestrator::HttpResponse>> {
         self.client
             .delete_item()
             .table_name(self.table_name.as_str())
@@ -169,7 +170,7 @@ impl Client {
         &self,
         key: String,
         lease_v: Uuid,
-    ) -> Result<Uuid, SdkError<UpdateItemError>> {
+    ) -> Result<Uuid, SdkError<UpdateItemError, orchestrator::HttpResponse>> {
         let expiry_timestamp =
             OffsetDateTime::now_utc().unix_timestamp() + i64::from(self.lease_ttl_seconds);
         let new_lease_v = Uuid::new_v4();
