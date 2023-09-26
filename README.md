@@ -1,3 +1,5 @@
+# The dynamodb-lease repo has been moved. See [alexheretic/dynamodb-lease](https://github.com/alexheretic/dynamodb-lease)
+
 # dynamodb-lease
 Client that acquires distributed locks in dynamodb that expire (aka "leases").
 Uses [aws-sdk-dynamodb](https://github.com/awslabs/aws-sdk-rust/tree/main/sdk/dynamodb)
